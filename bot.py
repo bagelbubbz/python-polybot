@@ -518,30 +518,46 @@ class PolyClient:
         size_usdc: float,
         price: float,
     ) -> Optional[str]:
-        from py_clob_client.client import ClobClient          # type: ignore
-        from py_clob_client.clob_types import OrderArgs, OrderType  # type: ignore
+        try:
+            from py_clob_client.client import ClobClient          # type: ignore
+            from py_clob_client.clob_types import ApiCreds, OrderArgs, OrderType  # type: ignore
+        except ImportError:
+            raise RuntimeError(
+                "py-clob-client is required for live trading. "
+                "Install it with: pip install py-clob-client==0.34.6"
+            )
 
-        client = ClobClient(
+        # L1 client to derive API credentials from private key
+        l1_client = ClobClient(
             host=POLYMARKET_CLOB_URL,
             key=self._private_key,
             chain_id=137,   # Polygon mainnet
         )
-        creds = client.create_or_derive_api_creds()
+        raw_creds = l1_client.create_or_derive_api_creds()
+
+        # L2 client with full credentials for order placement
+        creds = ApiCreds(
+            api_key=raw_creds.api_key,
+            api_secret=raw_creds.api_secret,
+            api_passphrase=raw_creds.api_passphrase,
+        )
         client = ClobClient(
             host=POLYMARKET_CLOB_URL,
             key=self._private_key,
             chain_id=137,
-            api_creds=creds,
+            creds=creds,
             signature_type=0,
         )
+
+        # Fill-or-kill for minimum latency
         args = OrderArgs(
             token_id=market.token_id,
             price=price,
             size=size_usdc,
             side=side,
-            order_type=OrderType.FOK,   # fill-or-kill for latency arb
         )
-        resp = client.create_and_post_order(args)
+        options = {"order_type": OrderType.FOK}
+        resp = client.create_and_post_order(args, options)
         return resp.get("orderID") if resp else None
 
 
