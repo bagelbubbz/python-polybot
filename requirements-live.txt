@@ -1,0 +1,5 @@
+# Extra deps required for live trading only.
+# Paper mode (default) does NOT need this file.
+#
+# Install with:  pip install -r requirements-live.txt
+py-clob-client==0.34.6
